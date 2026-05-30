@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>w_salander_rastreador_streaming.html</title>
+    <style>
+        /* --- ESTÉTICA INDUSTRIAL MONOCROMÁTICA --- */
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Lucida Console', Monaco, monospace;
+            font-size: 13px;
+            padding: 40px;
+            line-height: 1.4;
+        }
+
+        .caja-monitor {
+            max-width: 750px;
+            margin: 0 auto;
+            border: 1px solid #ffffff;
+            background-color: #000000;
+            padding: 25px;
+        }
+
+        .meta-info {
+            color: #888888;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333333;
+            padding-bottom: 8px;
+        }
+
+        /* --- VOLCADO DE ESTRENOS Y PLATAFORMAS --- */
+        .volcado-datos {
+            background-color: #000000;
+            border: 1px solid #333333;
+            padding: 15px;
+            margin-bottom: 20px;
+            max-height: 450px;
+            overflow-y: auto;
+        }
+
+        .linea-registro {
+            padding: 12px 0;
+            border-bottom: 1px solid #222222;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .linea-registro:last-child {
+            border-bottom: none;
+        }
+
+        .fila-superior {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dia-etiqueta {
+            color: #888888;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        .valor-estreno {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        /* --- ETIQUETAS DE LAS APLICACIONES (MONO) --- */
+        .contenedor-plataformas {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 2px;
+        }
+
+        .plataforma-tag {
+            font-size: 10px;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 0px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            border: 1px solid #ffffff;
+            background-color: #000000;
+            color: #ffffff;
+        }
+
+        .netflix {
+            background-color: #ffffff;
+            color: #000000;
+        }
+
+        .prime {
+            border-style: dashed;
+        }
+
+        .hbo {
+            border-width: 2px;
+        }
+
+        .disney {
+            background-color: #222222;
+            border-color: #222222;
+        }
+
+        .apple {
+            background-color: #444444;
+            border-color: #444444;
+        }
+
+        .cine {
+            color: #888888;
+            border-color: #444444;
+        }
+
+        /* --- BOTÓN DE ACTUALIZACIÓN --- */
+        .btn-control {
+            background-color: #000000;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 12px;
+            cursor: pointer;
+            text-transform: uppercase;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .btn-control:hover {
+            background-color: #ffffff;
+            color: #000000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="caja-monitor">
+        <div class="meta-info">
+            SISTEMA: MONITOR_DE_STREAMING // FILTRO: DESTACADOS_POPULARES // ID: 902.11
+        </div>
+
+        <div class="volcado-datos" id="pantalla-datos">
+            <div style="color: #888888;">[ Conectando a redes de transmisión. Sincronizando cartelera... ]</div>
+        </div>
+
+        <button class="btn-control" onclick="solicitarCarteleraInternet()">[ Sincronizar Datos Ahora ]</button>
+    </div>
+
+    <script>
+        const URL_API = "https://api.tvmaze.com/schedule?country=US";
+
+        function asignarPlataforma(redEmision, nombreShow) {
+            const red = redEmision ? redEmision.toLowerCase() : '';
+            const nombre = nombreShow.toLowerCase();
+
+            if (red.includes('netflix') || nombre.includes('netflix')) {
+                return '<span class="plataforma-tag netflix">Netflix</span>';
+            } else if (red.includes('amazon') || red.includes('prime') || nombre.includes('prime')) {
+                return '<span class="plataforma-tag prime">Prime Video</span>';
+            } else if (red.includes('hbo') || red.includes('max') || red.includes('warner')) {
+                return '<span class="plataforma-tag hbo">Max (HBO)</span>';
+            } else if (red.includes('disney') || red.includes('hulu') || red.includes('fx')) {
+                return '<span class="plataforma-tag disney">Disney+</span>';
+            } else if (red.includes('apple')) {
+                return '<span class="plataforma-tag apple">Apple TV+</span>';
+            } else {
+                return '<span class="plataforma-tag cine">Streaming / TV</span>';
+            }
+        }
+
+        function solicitarCarteleraInternet() {
+            const pantalla = document.getElementById('pantalla-datos');
+            pantalla.innerHTML = `<div style="color: #888888;">[ Extrayendo flujos de datos de internet... ]</div>`;
+
+            fetch(URL_API)
+                .then(respuesta => {
+                    if (!respuesta.ok) throw new Error();
+                    return respuesta.json();
+                })
+                .then(datos => {
+                    pantalla.innerHTML = "";
+
+                    // 1. FILTRAR Y ORDENAR POR IMPORTANCIA
+                    const estrenosImportantes = datos
+                        // Omitir shows que no tengan información relevante de cadena o plataforma
+                        .filter(item => {
+                            const redOriginal = item.show.webChannel ? item.show.webChannel.name : (item.show.network ? item.show.network.name : '');
+                            return redOriginal !== '' && redOriginal.toLowerCase() !== 'unknown';
+                        })
+                        // Ordenar de Mayor a Menor popularidad usando la métrica interna "weight" de TVMaze
+                        .sort((a, b) => (b.show.weight || 0) - (a.show.weight || 0));
+
+                    // 2. EXTRAER LOS TOP 15 MÁS IMPORTANTES DEL DÍA
+                    const topEstrenos = estrenosImportantes.slice(0, 15);
+
+                    if (topEstrenos.length === 0) {
+                        pantalla.innerHTML = `<div style="color: #888888;">[ No se detectaron lanzamientos masivos programados para hoy ]</div>`;
+                        return;
+                    }
+
+                    topEstrenos.forEach(item => {
+                        const linea = document.createElement('div');
+                        linea.className = 'linea-registro';
+
+                        const fechaLimpia = item.airdate;
+                        const nombreProduccion = item.show.name;
+                        const detalleEpisodio = item.number ? `(T${item.season} E${item.number})` : '';
+
+                        const redOriginal = item.show.webChannel ? item.show.webChannel.name : (item.show.network ? item.show.network.name : 'Desconocido');
+                        const tagAplicacion = asignarPlataforma(redOriginal, nombreProduccion);
+
+                        // Mostrar métrica de relevancia (Opcional, en un look minimalista gris)
+                        const ratingInfo = item.show.rating && item.show.rating.average ? ` ★ ${item.show.rating.average}` : '';
+
+                        linea.innerHTML = `
+                            <div class="fila-superior">
+                                <span class="valor-estreno">${nombreProduccion} ${detalleEpisodio} <span style="color:#888888; font-size:11px;">${ratingInfo}</span></span>
+                                <span class="dia-etiqueta">Día: ${fechaLimpia}</span>
+                            </div>
+                            <div class="contenedor-plataformas">
+                                <span style="color:#888888; font-size:11px;">Red/Origen: ${redOriginal} //</span> ${tagAplicacion}
+                            </div>
+                        `;
+                        pantalla.appendChild(linea);
+                    });
+                })
+                .catch(error => {
+                    pantalla.innerHTML = `<div style="color: #ffffff; border: 1px dashed #ffffff; padding: 10px;">[ Fallo de red. No se pudo conectar con el servidor de contenidos ]</div>`;
+                });
+        }
+
+        solicitarCarteleraInternet();
+    </script>
+</body>
+
+</html>
